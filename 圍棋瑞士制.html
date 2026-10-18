@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>瑞士制賽程管理互動工具</title>
+  <style>
+    :root {
+      --bg-color: #f0f7ff;
+      --card-bg: #ffffff;
+      --primary: #4a90e2;
+      --primary-hover: #357abd;
+      --accent: #ff6b6b;
+      --success: #2ecc71;
+      --warning: #f39c12;
+      --text-color: #2c3e50;
+      --border-color: #e1e8ed;
+    }
+
+    body {
+      font-family: 'Segoe UI', Microsoft JhengHei, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      color: var(--primary);
+      margin-bottom: 10px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+
+    .btn {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn:hover { background-color: var(--primary-hover); }
+    .btn-danger { background-color: var(--accent); }
+    .btn-danger:hover { background-color: #d9534f; }
+    .btn-success { background-color: var(--success); }
+    .btn-success:hover { background-color: #27ae60; }
+    .btn-warning { background-color: var(--warning); }
+    .btn-warning:hover { background-color: #d68910; }
+    .btn-undo { background-color: #95a5a6; padding: 4px 10px; font-size: 12px; }
+
+    .input-group {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+
+    input[type="number"], input[type="text"] {
+      padding: 8px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+    }
+
+    .player-inputs {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+      margin-top: 15px;
+    }
+
+    /* 對戰卡片 */
+    .match-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 15px;
+    }
+
+    .match-card {
+      background: #fafbfc;
+      border: 2px solid var(--border-color);
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .match-card.withdrawn-match {
+      background: #fdf2f2;
+      border-color: #f5c6cb;
+    }
+
+    .match-actions { display: flex; gap: 6px; }
+
+    /* 戰績表格 */
+    .table-responsive {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: center;
+    }
+
+    th, td {
+      border: 1px solid var(--border-color);
+      padding: 10px;
+      font-size: 14px;
+    }
+
+    th { background-color: #eef5fc; color: var(--primary); }
+    
+    .win-tag { color: var(--success); font-weight: bold; }
+    .loss-tag { color: var(--accent); font-weight: bold; }
+
+    .hidden { display: none !important; }
+
+    .highlight-card {
+      background: #eef9f1;
+      border: 1px solid #c3e6cb;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+
+    /* 離場管理彈窗 */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .modal-box {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .withdraw-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 10px;
+      margin: 15px 0;
+    }
+
+    .withdraw-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px;
+      background: #f8f9fa;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1 id="main-title">🏆 瑞士制賽程管理互動工具</h1>
+  </header>
+
+  <!-- 1. 設定與登記 -->
+  <div id="setup-section" class="card">
+    <h2>1. 賽事設定與選手登記</h2>
+    <div class="input-group">
+      <label>比賽名稱/大標題：</label>
+      <input type="text" id="tournament-title-input" value="瑞士制賽程管理互動工具" style="width: 240px;" oninput="updateTitle()">
+    </div>
+    <div class="input-group">
+      <label>比賽總人數：</label>
+      <input type="number" id="player-count" value="8" min="4" max="64" step="2">
+      <button class="btn" onclick="generatePlayerFields()">生成選手名單</button>
+      <button class="btn btn-danger" onclick="resetAll()">重新開始 / 重置</button>
+    </div>
+    <div id="player-fields" class="player-inputs"></div>
+    <div style="margin-top: 15px;">
+      <button class="btn btn-success" id="start-btn" onclick="startTournament()" style="display:none;">開始比賽 (第1輪配對)</button>
+    </div>
+  </div>
+
+  <!-- 2. 即時賽程與成績錄入 -->
+  <div id="tournament-section" class="card hidden">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <h2>目前進度：第 <span id="current-round-num">1</span> 輪對決</h2>
+      <div>
+        <button class="btn btn-warning" onclick="openWithdrawModal(false)">📋 管理離場/棄權選手</button>
+        <button class="btn btn-danger" onclick="finishTournament()">結束比賽並結算</button>
+      </div>
+    </div>
+    <div id="match-cards-container" class="match-list" style="margin-top: 15px;"></div>
+  </div>
+
+  <!-- 3. 戰績紀錄表 -->
+  <div id="matrix-section" class="card hidden">
+    <h2>總戰績紀錄表 (預留 5 輪空間)</h2>
+    <div class="table-responsive">
+      <table id="matrix-table">
+        <thead>
+          <tr id="matrix-header">
+            <th>編號</th>
+            <th>選手姓名</th>
+            <th>第一場</th><th>成績</th>
+            <th>第二場</th><th>成績</th>
+            <th>第三場</th><th>成績</th>
+            <th>第四場</th><th>成績</th>
+            <th>第五場</th><th>成績</th>
+            <th>勝場</th>
+          </tr>
+        </thead>
+        <tbody id="matrix-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 4. 結算畫面 -->
+  <div id="result-section" class="card hidden">
+    <h2>🎉 比賽最終結算</h2>
+    <div id="winners-highlight"></div>
+    <h3>完整最終排名</h3>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>名次</th>
+            <th>編號</th>
+            <th>姓名</th>
+            <th>總勝場</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboard-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 離場選手確認彈窗 -->
+<div id="withdraw-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h3>確認離場 / 棄賽選手</h3>
+    <p style="font-size: 13px; color: #666;">勾選已提前離場的選手。系統排對手時會<b>優先讓離場者互相配對並自動判雙負</b>，避免讓多位在場選手輪空。</p>
+    <div id="withdraw-checklist" class="withdraw-grid"></div>
+    <div style="text-align: right; margin-top: 15px;">
+      <button class="btn btn-primary" onclick="confirmWithdrawModal()">確認並繼續</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let players = []; // { id, name, wins: 0, history: [], opponents: [], isWithdrawn: false }
+  let currentRound = 1;
+  let roundMatches = {}; // roundNum -> [{ p1, p2, winner: null, isWithdrawnMatch: false }]
+  const TOTAL_ROUNDS = 5;
+  let isNextRoundTrigger = false;
+
+  function updateTitle() {
+    const inputVal = document.getElementById('tournament-title-input').value.trim();
+    const titleElem = document.getElementById('main-title');
+    if (inputVal) {
+      titleElem.innerText = `🏆 ${inputVal}`;
+      document.title = inputVal;
+    } else {
+      titleElem.innerText = '🏆 瑞士制賽程管理互動工具';
+      document.title = '瑞士制賽程管理互動工具';
+    }
+  }
+
+  function generatePlayerFields() {
+    const count = parseInt(document.getElementById('player-count').value);
+    if (count % 2 !== 0) {
+      alert("瑞士制建議設定偶數人數！");
+      return;
+    }
+    const container = document.getElementById('player-fields');
+    container.innerHTML = '';
+    for (let i = 1; i <= count; i++) {
+      container.innerHTML += `
+        <div>
+          <label>${i} 號：</label>
+          <input type="text" id="p-name-${i}" value="選手 ${i}" style="width: 110px;">
+        </div>
+      `;
+    }
+    document.getElementById('start-btn').style.display = 'inline-block';
+  }
+
+  function resetAll() {
+    if (confirm("確定要重置所有賽事資料並重新開始嗎？")) {
+      location.reload();
+    }
+  }
+
+  function startTournament() {
+    const count = parseInt(document.getElementById('player-count').value);
+    players = [];
+    for (let i = 1; i <= count; i++) {
+      const name = document.getElementById(`p-name-${i}`).value || `選手 ${i}`;
+      players.push({
+        id: i,
+        name: name,
+        wins: 0,
+        opponents: [],
+        history: [],
+        isWithdrawn: false
+      });
+    }
+
+    document.getElementById('setup-section').classList.add('hidden');
+    document.getElementById('tournament-section').classList.remove('hidden');
+    document.getElementById('matrix-section').classList.remove('hidden');
+
+    renderMatrixTable();
+    generatePairingsForRound(1);
+  }
+
+  function openWithdrawModal(isAutoNext = false) {
+    isNextRoundTrigger = isAutoNext;
+    const listContainer = document.getElementById('withdraw-checklist');
+    listContainer.innerHTML = '';
+    
+    players.forEach(p => {
+      listContainer.innerHTML += `
+        <label class="withdraw-item">
+          <input type="checkbox" id="withdraw-chk-${p.id}" ${p.isWithdrawn ? 'checked' : ''}>
+          <span>${p.id}號 ${p.name}</span>
+        </label>
+      `;
+    });
+
+    document.getElementById('withdraw-modal').classList.remove('hidden');
+  }
+
+  function confirmWithdrawModal() {
+    players.forEach(p => {
+      const chk = document.getElementById(`withdraw-chk-${p.id}`);
+      if (chk) p.isWithdrawn = chk.checked;
+    });
+
+    document.getElementById('withdraw-modal').classList.add('hidden');
+    renderMatrixTable();
+
+    if (isNextRoundTrigger) {
+      generatePairingsForRound(currentRound + 1);
+      isNextRoundTrigger = false;
+    }
+  }
+
+  // 核心配對邏輯（整合雙棄賽自動雙負與回溯）
+  function generatePairingsForRound(roundNum) {
+    currentRound = roundNum;
+    document.getElementById('current-round-num').innerText = roundNum;
+
+    // 分流：在場選手 vs 棄賽選手
+    let activePlayers = players.filter(p => !p.isWithdrawn).sort((a, b) => b.wins - a.wins || a.id - b.id);
+    let withdrawnPlayers = players.filter(p => p.isWithdrawn).sort((a, b) => b.wins - a.wins || a.id - b.id);
+
+    // 棄賽選手互咬配對
+    let withdrawnMatches = [];
+    while (withdrawnPlayers.length >= 2) {
+      let p1 = withdrawnPlayers.shift();
+      let p2 = withdrawnPlayers.shift();
+      
+      // 自動登記雙負
+      p1.opponents.push(p2.id);
+      p1.history[roundNum - 1] = { oppId: p2.id, result: '負' };
+
+      p2.opponents.push(p1.id);
+      p2.history[roundNum - 1] = { oppId: p1.id, result: '負' };
+
+      withdrawnMatches.push({ p1: p1.id, p2: p2.id, winner: 'DOUBLE_LOSS', isWithdrawnMatch: true });
+    }
+
+    // 若棄權人數為奇數，最後落單的 1 位併入正常組（讓 1 位正常選手輪空對上）
+    if (withdrawnPlayers.length === 1) {
+      activePlayers.push(withdrawnPlayers.shift());
+    }
+
+    // 正常組進行回溯無重複配對
+    let activeMatches = solvePairingsBacktracking(activePlayers);
+
+    if (!activeMatches) {
+      activeMatches = fallbackPairing(activePlayers);
+    }
+
+    roundMatches[roundNum] = [...activeMatches, ...withdrawnMatches];
+    renderMatchCards();
+    renderMatrixTable();
+
+    // 如果全場所有比賽都是雙棄賽（極端情況），直接推進
+    checkAndAdvanceRound();
+  }
+
+  function solvePairingsBacktracking(playerList) {
+    if (playerList.length === 0) return [];
+
+    let p1 = playerList[0];
+    for (let i = 1; i < playerList.length; i++) {
+      let p2 = playerList[i];
+      if (!p1.opponents.includes(p2.id)) {
+        let rest = playerList.filter(p => p.id !== p1.id && p.id !== p2.id);
+        let subResult = solvePairingsBacktracking(rest);
+        if (subResult !== null) {
+          return [{ p1: p1.id, p2: p2.id, winner: null, isWithdrawnMatch: false }, ...subResult];
+        }
+      }
+    }
+    return null;
+  }
+
+  function fallbackPairing(playerList) {
+    let matches = [];
+    let list = [...playerList];
+    while (list.length >= 2) {
+      let p1 = list.shift();
+      let p2 = list.shift();
+      matches.push({ p1: p1.id, p2: p2.id, winner: null, isWithdrawnMatch: false });
+    }
+    return matches;
+  }
+
+  // 渲染勝負卡片
+  function renderMatchCards() {
+    const container = document.getElementById('match-cards-container');
+    container.innerHTML = '';
+    const matches = roundMatches[currentRound] || [];
+
+    matches.forEach((m, idx) => {
+      const p1 = players.find(p => p.id === m.p1);
+      const p2 = players.find(p => p.id === m.p2);
+
+      const card = document.createElement('div');
+      card.className = `match-card ${m.isWithdrawnMatch ? 'withdrawn-match' : ''}`;
+      
+      let statusHtml = '';
+      if (m.isWithdrawnMatch) {
+        statusHtml = `
+          <div>
+            <span style="font-weight:bold; color:var(--accent); font-size:13px;">雙方棄權 (已自動記雙負)</span>
+          </div>
+        `;
+      } else if (m.winner === null) {
+        statusHtml = `
+          <div class="match-actions">
+            <button class="btn btn-success" onclick="recordResult(${idx}, ${p1.id})">${p1.id}號勝</button>
+            <button class="btn btn-success" onclick="recordResult(${idx}, ${p2.id})">${p2.id}號勝</button>
+          </div>
+        `;
+      } else {
+        const winnerName = players.find(p => p.id === m.winner).name;
+        statusHtml = `
+          <div>
+            <span style="font-weight:bold; color:var(--success); margin-right:8px;">勝者: ${winnerName}</span>
+            <button class="btn btn-undo" onclick="undoResult(${idx})">取消 / 撤回</button>
+          </div>
+        `;
+      }
+
+      card.innerHTML = `
+        <div>
+          <strong>${p1.id}號 ${p1.name}${p1.isWithdrawn ? ' (棄)' : ''}</strong> 
+          vs 
+          <strong>${p2.id}號 ${p2.name}${p2.isWithdrawn ? ' (棄)' : ''}</strong>
+        </div>
+        ${statusHtml}
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  function recordResult(matchIdx, winnerId) {
+    const match = roundMatches[currentRound][matchIdx];
+    if (match.isWithdrawnMatch) return; // 雙棄賽不需登記
+
+    const loserId = (winnerId === match.p1) ? match.p2 : match.p1;
+    
+    match.winner = winnerId;
+    const winner = players.find(p => p.id === winnerId);
+    const loser = players.find(p => p.id === loserId);
+
+    winner.wins += 1;
+    winner.opponents.push(loserId);
+    winner.history[currentRound - 1] = { oppId: loserId, result: '勝' };
+
+    loser.opponents.push(winnerId);
+    loser.history[currentRound - 1] = { oppId: winnerId, result: '負' };
+
+    renderMatchCards();
+    renderMatrixTable();
+    checkAndAdvanceRound();
+  }
+
+  function undoResult(matchIdx) {
+    const match = roundMatches[currentRound][matchIdx];
+    if (match.winner === null || match.isWithdrawnMatch) return;
+
+    const winnerId = match.winner;
+    const loserId = (winnerId === match.p1) ? match.p2 : match.p1;
+
+    const winner = players.find(p => p.id === winnerId);
+    const loser = players.find(p => p.id === loserId);
+
+    winner.wins -= 1;
+    winner.opponents.pop();
+    winner.history[currentRound - 1] = null;
+
+    loser.opponents.pop();
+    loser.history[currentRound - 1] = null;
+
+    match.winner = null;
+
+    renderMatchCards();
+    renderMatrixTable();
+  }
+
+  function checkAndAdvanceRound() {
+    const matches = roundMatches[currentRound] || [];
+    const allFinished = matches.every(m => m.winner !== null);
+
+    if (allFinished && matches.length > 0) {
+      if (currentRound < TOTAL_ROUNDS) {
+        setTimeout(() => {
+          openWithdrawModal(true);
+        }, 150);
+      } else {
+        alert("5 輪比賽皆已進行完畢！點擊上方「結束比賽並結算」即可查看最終名次。");
+      }
+    }
+  }
+
+  function renderMatrixTable() {
+    const tbody = document.getElementById('matrix-body');
+    tbody.innerHTML = '';
+    let displayPlayers = [...players].sort((a, b) => a.id - b.id);
+
+    displayPlayers.forEach(p => {
+      let tr = document.createElement('tr');
+      let html = `<td>${p.id}</td><td>${p.name}${p.isWithdrawn ? ' <span style="color:#d9534f; font-size:12px;">(棄)</span>' : ''}</td>`;
+
+      for (let r = 0; r < TOTAL_ROUNDS; r++) {
+        if (p.history[r]) {
+          const resClass = p.history[r].result === '勝' ? 'win-tag' : 'loss-tag';
+          html += `<td>${p.history[r].oppId}號</td><td class="${resClass}">${p.history[r].result}</td>`;
+        } else {
+          html += `<td>-</td><td>-</td>`;
+        }
+      }
+
+      html += `<td><strong>${p.wins}</strong></td>`;
+      tr.innerHTML = html;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function finishTournament() {
+    if (!confirm("確定要結束比賽並進行結算嗎？")) return;
+
+    document.getElementById('tournament-section').classList.add('hidden');
+    document.getElementById('result-section').classList.remove('hidden');
+
+    let ranked = [...players].map(p => {
+      let sos = p.opponents.reduce((acc, oppId) => {
+        let opp = players.find(x => x.id === oppId);
+        return acc + (opp ? opp.wins : 0);
+      }, 0);
+      return { ...p, sos };
+    }).sort((a, b) => b.wins - a.wins || b.sos - a.sos || a.id - b.id);
+
+    // 只抓出全勝冠軍
+    const maxWins = Math.max(...ranked.map(p => p.wins));
+    const perfects = ranked.filter(p => p.wins === maxWins && p.wins > 0);
+
+    let highlightHtml = `<div class="highlight-card">`;
+    highlightHtml += `<p style="margin: 0; font-size: 18px;">👑 <strong>全勝冠軍：</strong> ${perfects.map(p => `${p.id}號 ${p.name} (${p.wins}勝)`).join(', ') || '無'}</p>`;
+    highlightHtml += `</div>`;
+    document.getElementById('winners-highlight').innerHTML = highlightHtml;
+
+    const tbody = document.getElementById('leaderboard-body');
+    tbody.innerHTML = '';
+    ranked.forEach((p, index) => {
+      tbody.innerHTML += `
+        <tr>
+          <td><strong>第 ${index + 1} 名</strong></td>
+          <td>${p.id}</td>
+          <td>${p.name}${p.isWithdrawn ? ' (棄權)' : ''}</td>
+          <td><strong>${p.wins} 勝</strong> (SOS: ${p.sos})</td>
+        </tr>
+      `;
+    });
+  }
+
+  generatePlayerFields();
+</script>
+
+</body>
+</html>
